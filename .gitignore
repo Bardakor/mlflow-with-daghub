@@ -34,6 +34,8 @@ mlruns/
 mlartifacts/
 
 # DVC
+.dvc/cache
+.dvc/tmp
 .dvc/local
 .dvcignore
 
@@ -51,8 +53,13 @@ Thumbs.db
 # Docker
 .dockerignore
 
-# Model files
-*.pkl
-*.joblib
-*.h5
-*.pb 
+# Data files (tracked by DVC)
+/data/raw_dataset.csv
+
+# Model files (some tracked by DVC, some local)
+models/*.pkl
+!models/best_model.pkl
+models/model_metadata.json
+
+# Logs
+*.log 

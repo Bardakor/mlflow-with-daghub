@@ -6,12 +6,18 @@ on:
   pull_request:
     branches: [ main ]
 
+env:
+  DOCKER_IMAGE_NAME: mlflow-model
+
 jobs:
   train-and-deploy:
     runs-on: ubuntu-latest
     
     steps:
-    - uses: actions/checkout@v4
+    - name: Checkout code
+      uses: actions/checkout@v4
+      with:
+        fetch-depth: 0  # Fetch full history for DVC
     
     - name: Set up Python
       uses: actions/setup-python@v4
@@ -23,11 +29,40 @@ jobs:
         python -m pip install --upgrade pip
         pip install -r requirements.txt
     
-    - name: Run MLflow notebook
+    - name: Configure DVC
+      run: |
+        dvc remote modify origin --local auth basic
+        dvc remote modify origin --local user ${{ secrets.DAGSHUB_USERNAME }}
+        dvc remote modify origin --local password ${{ secrets.DAGSHUB_TOKEN }}
+      env:
+        DAGSHUB_USERNAME: ${{ secrets.DAGSHUB_USERNAME }}
+        DAGSHUB_TOKEN: ${{ secrets.DAGSHUB_TOKEN }}
+    
+    - name: Pull data with DVC
+      run: |
+        dvc pull
+      continue-on-error: true  # Continue if no data to pull initially
+    
+    - name: Run MLflow notebook and train models
       run: |
         python run_notebook.py
       env:
-        MLFLOW_TRACKING_URI: ${{ secrets.MLFLOW_TRACKING_URI }}
+        MLFLOW_TRACKING_URI: https://dagshub.com/Bardakor/mlflow-with-daghub.mlflow
+        MLFLOW_TRACKING_USERNAME: ${{ secrets.DAGSHUB_TOKEN }}
+        MLFLOW_TRACKING_PASSWORD: ${{ secrets.DAGSHUB_TOKEN }}
+        DAGSHUB_TOKEN: ${{ secrets.DAGSHUB_TOKEN }}
+    
+    - name: Generate model metadata
+      run: |
+        python generate_metadata.py
+    
+    - name: Push data and models to DVC (if changed)
+      run: |
+        dvc add models/best_model.pkl models/model_metadata.json
+        dvc push
+      continue-on-error: true  # Continue if nothing to push
+      env:
+        DAGSHUB_USERNAME: ${{ secrets.DAGSHUB_USERNAME }}
         DAGSHUB_TOKEN: ${{ secrets.DAGSHUB_TOKEN }}
     
     - name: Set up Docker Buildx
@@ -39,10 +74,34 @@ jobs:
         username: ${{ secrets.DOCKER_USERNAME }}
         password: ${{ secrets.DOCKER_PASSWORD }}
     
+    - name: Extract metadata for Docker
+      id: meta
+      uses: docker/metadata-action@v5
+      with:
+        images: ${{ secrets.DOCKER_USERNAME }}/${{ env.DOCKER_IMAGE_NAME }}
+        tags: |
+          type=ref,event=branch
+          type=ref,event=pr
+          type=sha,prefix={{branch}}-
+          type=raw,value=latest,enable={{is_default_branch}}
+    
     - name: Build and push Docker image
       uses: docker/build-push-action@v5
       with:
         context: .
         push: true
-        tags: ${{ secrets.DOCKER_USERNAME }}/mlflow-model:latest
+        tags: ${{ steps.meta.outputs.tags }}
+        labels: ${{ steps.meta.outputs.labels }}
         platforms: linux/amd64,linux/arm64
+        cache-from: type=gha
+        cache-to: type=gha,mode=max
+    
+    - name: Test Docker image
+      run: |
+        # Pull and test the image
+        docker run --rm -d -p 5000:5000 --name test-container ${{ secrets.DOCKER_USERNAME }}/${{ env.DOCKER_IMAGE_NAME }}:latest
+        sleep 10
+        curl -f http://localhost:5000/health || exit 1
+        curl -f http://localhost:5000/model_info || exit 1
+        docker stop test-container
+      if: github.event_name == 'push' && github.ref == 'refs/heads/main'

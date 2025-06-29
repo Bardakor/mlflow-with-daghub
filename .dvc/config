@@ -1,0 +1,4 @@
+['remote "origin"']
+    url = https://dagshub.com/Bardakor/mlflow-with-daghub.dvc
+['core']
+    remote = origin 
