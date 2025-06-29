@@ -16,6 +16,7 @@ RUN pip install --no-cache-dir -r requirements.txt
 COPY app.py .
 COPY run_notebook.py .
 COPY generate_metadata.py .
+COPY create_sample_data.py .
 COPY MLFlowSetup.ipynb .
 
 # Create models and data directories
@@ -24,6 +25,9 @@ RUN mkdir -p models data
 # Copy models and data if they exist
 COPY models ./models
 COPY data ./data
+
+# Ensure we have data available (create if missing)
+RUN python create_sample_data.py || echo "Data already exists"
 
 # Set environment variables for MLflow/DagHub
 ENV PYTHONPATH=/app

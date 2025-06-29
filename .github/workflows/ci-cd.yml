@@ -37,7 +37,7 @@ jobs:
         python -m pip install --upgrade pip
         pip install -r requirements.txt
     
-    - name: Configure DVC
+    - name: Configure DVC (optional)
       run: |
         dvc remote modify origin --local auth basic
         dvc remote modify origin --local user ${{ secrets.DAGSHUB_USERNAME }}
@@ -45,11 +45,24 @@ jobs:
       env:
         DAGSHUB_USERNAME: ${{ secrets.DAGSHUB_USERNAME }}
         DAGSHUB_TOKEN: ${{ secrets.DAGSHUB_TOKEN }}
+      continue-on-error: true
     
-    - name: Pull data with DVC
+    - name: Pull data with DVC (if available)
       run: |
-        dvc pull
-      continue-on-error: true  # Continue if no data to pull initially
+        echo "📥 Attempting to pull data with DVC..."
+        dvc pull || echo "⚠️ DVC pull failed - will use sklearn dataset directly"
+      continue-on-error: true
+    
+    - name: Ensure data availability
+      run: |
+        echo "🔍 Checking data availability..."
+        if [ -f "data/raw_dataset.csv" ]; then
+          echo "✅ Raw dataset found locally"
+          ls -lh data/raw_dataset.csv
+        else
+          echo "📦 Creating dataset from sklearn digits..."
+          python create_sample_data.py
+        fi
     
     - name: Run MLflow notebook and train models
       run: |
@@ -82,12 +95,14 @@ jobs:
           exit 1
         fi
         echo "✅ All required files present!"
+        cat models/model_metadata.json
     
-    - name: Push data and models to DVC (if changed)
+    - name: Push data and models to DVC (if configured)
       run: |
-        dvc add models/best_model.pkl models/model_metadata.json
-        dvc push
-      continue-on-error: true  # Continue if nothing to push
+        echo "📤 Attempting to push to DVC..."
+        dvc add models/best_model.pkl models/model_metadata.json || echo "⚠️ DVC add failed"
+        dvc push || echo "⚠️ DVC push failed - continuing without DVC storage"
+      continue-on-error: true
       env:
         DAGSHUB_USERNAME: ${{ secrets.DAGSHUB_USERNAME }}
         DAGSHUB_TOKEN: ${{ secrets.DAGSHUB_TOKEN }}
