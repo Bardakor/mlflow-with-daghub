@@ -158,8 +158,8 @@ jobs:
     - name: Test Docker image
       run: |
         echo "Testing Docker image..."
-        # Pull and test the image
-        docker run --rm -d -p 5000:5000 --name test-container ${{ secrets.DOCKER_USERNAME }}/${{ env.DOCKER_IMAGE_NAME }}:latest
+        # Pull and test the image (remove --rm flag so we can control cleanup)
+        docker run -d -p 5000:5000 --name test-container ${{ secrets.DOCKER_USERNAME }}/${{ env.DOCKER_IMAGE_NAME }}:latest
         sleep 15
         
         # Test health endpoint
@@ -168,6 +168,8 @@ jobs:
         else
           echo "Health check failed!"
           docker logs test-container
+          docker stop test-container || true
+          docker rm test-container || true
           exit 1
         fi
         
@@ -176,9 +178,14 @@ jobs:
           echo "Model info endpoint passed!"
         else
           echo "Model info endpoint failed!"
+          docker logs test-container
+          docker stop test-container || true
+          docker rm test-container || true
+          exit 1
         fi
         
-        docker stop test-container
-        docker rm test-container
+        # Clean up - use || true to handle cases where container already stopped
+        docker stop test-container || true
+        docker rm test-container || true
         echo "Docker image tests completed successfully!"
       if: github.event_name == 'push' && github.ref == 'refs/heads/main'
