@@ -15,6 +15,7 @@ from sklearn.model_selection import train_test_split
 from sklearn.metrics import accuracy_score
 from sklearn.datasets import load_digits
 import datetime
+import sys
 
 def setup_dagshub():
     """Setup DagHub connection"""
@@ -26,16 +27,19 @@ def setup_dagshub():
             os.environ['MLFLOW_TRACKING_PASSWORD'] = dagshub_token
 
         dagshub.init(repo_owner='Bardakor', repo_name='mlflow-with-daghub', mlflow=True)
-        print("✅ DagHub connection established")
+        print("DagHub connection established")
+        sys.stdout.flush()
         return True
     except Exception as e:
-        print(f"⚠️ DagHub setup failed: {e}")
+        print(f"DagHub setup failed: {e}")
         print("Continuing with local MLflow...")
+        sys.stdout.flush()
         return False
 
 def train_fast_models():
     """Train models with reduced complexity for faster execution"""
-    print("🚀 Starting fast model training...")
+    print("Starting fast model training...")
+    sys.stdout.flush()
     
     # Load data
     data = load_digits()
@@ -48,13 +52,15 @@ def train_fast_models():
         X_sample, y_sample, test_size=0.2, random_state=42
     )
     
-    print(f"📊 Training on {len(X_train)} samples, testing on {len(X_test)} samples")
+    print(f"Training on {len(X_train)} samples, testing on {len(X_test)} samples")
+    sys.stdout.flush()
     
     # Setup MLflow experiment
     timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
     experiment_name = f"FastRandomForestExperiment_{timestamp}"
     mlflow.set_experiment(experiment_name)
-    print(f"📝 Using experiment: {experiment_name}")
+    print(f"Using experiment: {experiment_name}")
+    sys.stdout.flush()
     
     models = []
     accuracies = []
@@ -66,7 +72,8 @@ def train_fast_models():
     ]
     
     for i, config in enumerate(configs):
-        print(f"🔄 Training model {i+1}/2: {config['name']}")
+        print(f"Training model {i+1}/2: {config['name']}")
+        sys.stdout.flush()
         
         with mlflow.start_run(run_name=config['name']):
             # Train model
@@ -94,7 +101,8 @@ def train_fast_models():
             try:
                 mlflow.sklearn.log_model(model, "model")
             except Exception as e:
-                print(f"⚠️ Could not log model to MLflow: {e}")
+                print(f"Could not log model to MLflow: {e}")
+                sys.stdout.flush()
             
             # Save locally
             os.makedirs("models", exist_ok=True)
@@ -104,7 +112,8 @@ def train_fast_models():
             models.append(model)
             accuracies.append(accuracy)
             
-            print(f"✅ Model {config['name']} - Accuracy: {accuracy:.4f}")
+            print(f"Model {config['name']} - Accuracy: {accuracy:.4f}")
+            sys.stdout.flush()
     
     # Save best model
     best_idx = accuracies.index(max(accuracies))
@@ -112,7 +121,8 @@ def train_fast_models():
     best_config = configs[best_idx]
     best_accuracy = accuracies[best_idx]
     
-    print(f"🏆 Best model: {best_config['name']} with accuracy {best_accuracy:.4f}")
+    print(f"Best model: {best_config['name']} with accuracy {best_accuracy:.4f}")
+    sys.stdout.flush()
     
     # Save best model
     joblib.dump(best_model, "models/best_model.pkl")
@@ -137,12 +147,14 @@ def train_fast_models():
     with open("models/model_metadata.json", "w") as f:
         json.dump(model_metadata, f, indent=2)
     
-    print("💾 Best model and metadata saved!")
+    print("Best model and metadata saved!")
+    sys.stdout.flush()
     return True
 
 def main():
     """Main execution function"""
-    print("🚀 Fast notebook execution starting...")
+    print("Fast notebook execution starting...")
+    sys.stdout.flush()
     
     try:
         # Setup DagHub (optional for local testing)
@@ -151,14 +163,19 @@ def main():
         # Train models
         train_fast_models()
         
-        print("✅ Fast notebook execution completed successfully!")
+        print("Fast notebook execution completed successfully!")
+        sys.stdout.flush()
         return True
         
     except Exception as e:
-        print(f"❌ Error during execution: {e}")
+        print(f"Error during execution: {e}")
+        sys.stdout.flush()
         return False
 
 if __name__ == "__main__":
     import sys
+    # Ensure unbuffered output
+    os.environ['PYTHONUNBUFFERED'] = '1'
+    
     success = main()
     sys.exit(0 if success else 1) 

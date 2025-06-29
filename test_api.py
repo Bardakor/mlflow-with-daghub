@@ -22,9 +22,9 @@ def test_api(base_url="http://localhost:5000"):
         print(f"Response: {response.json()}")
         assert response.status_code == 200
         assert response.json()["status"] == "healthy"
-        print("✅ Health check passed")
+        print("Health check passed")
     except Exception as e:
-        print(f"❌ Health check failed: {e}")
+        print(f"Health check failed: {e}")
         return False
     
     # Test 2: Model info
@@ -36,9 +36,9 @@ def test_api(base_url="http://localhost:5000"):
         print(f"Model info: {json.dumps(model_info, indent=2)}")
         assert response.status_code == 200
         assert "model_type" in model_info
-        print("✅ Model info test passed")
+        print("Model info test passed")
     except Exception as e:
-        print(f"❌ Model info test failed: {e}")
+        print(f"Model info test failed: {e}")
         return False
     
     # Test 3: Prediction with sample data
@@ -63,9 +63,9 @@ def test_api(base_url="http://localhost:5000"):
         assert "probabilities" in prediction_result
         assert isinstance(prediction_result["prediction"], int)
         assert len(prediction_result["probabilities"]) == 10  # 10 digit classes
-        print("✅ Prediction test passed")
+        print("Prediction test passed")
     except Exception as e:
-        print(f"❌ Prediction test failed: {e}")
+        print(f"Prediction test failed: {e}")
         return False
     
     # Test 4: Invalid prediction request
@@ -79,12 +79,12 @@ def test_api(base_url="http://localhost:5000"):
         
         print(f"Status: {response.status_code}")
         assert response.status_code == 400
-        print("✅ Invalid request test passed")
+        print("Invalid request test passed")
     except Exception as e:
-        print(f"❌ Invalid request test failed: {e}")
+        print(f"Invalid request test failed: {e}")
         return False
     
-    print("\n🎉 All API tests passed!")
+    print("\nAll API tests passed!")
     return True
 
 def wait_for_api(base_url="http://localhost:5000", max_attempts=30):
@@ -95,7 +95,7 @@ def wait_for_api(base_url="http://localhost:5000", max_attempts=30):
         try:
             response = requests.get(f"{base_url}/health", timeout=5)
             if response.status_code == 200:
-                print(f"✅ API is ready after {attempt + 1} attempts")
+                print(f"API is ready after {attempt + 1} attempts")
                 return True
         except requests.exceptions.RequestException:
             pass
@@ -103,7 +103,7 @@ def wait_for_api(base_url="http://localhost:5000", max_attempts=30):
         time.sleep(2)
         print(f"Attempt {attempt + 1}/{max_attempts}...")
     
-    print(f"❌ API did not become available after {max_attempts} attempts")
+    print(f"API did not become available after {max_attempts} attempts")
     return False
 
 if __name__ == "__main__":
@@ -119,5 +119,5 @@ if __name__ == "__main__":
         success = test_api(base_url)
         sys.exit(0 if success else 1)
     else:
-        print("❌ API not available for testing")
+        print("API not available for testing")
         sys.exit(1)

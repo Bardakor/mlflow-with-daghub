@@ -49,59 +49,105 @@ jobs:
     
     - name: Pull data with DVC (if available)
       run: |
-        echo "📥 Attempting to pull data with DVC..."
-        dvc pull || echo "⚠️ DVC pull failed - will use sklearn dataset directly"
+        echo "Attempting to pull data with DVC..."
+        dvc pull || echo "DVC pull failed - will use sklearn dataset directly"
       continue-on-error: true
     
     - name: Ensure data availability
       run: |
-        echo "🔍 Checking data availability..."
+        echo "Checking data availability..."
         if [ -f "data/raw_dataset.csv" ]; then
-          echo "✅ Raw dataset found locally"
+          echo "Raw dataset found locally"
           ls -lh data/raw_dataset.csv
         else
-          echo "📦 Creating dataset from sklearn digits..."
+          echo "Creating dataset from sklearn digits..."
           python create_sample_data.py
         fi
     
+    - name: Debug environment before training
+      run: |
+        echo "Python version:"
+        python --version
+        echo "Current directory:"
+        pwd
+        echo "Files in current directory:"
+        ls -la
+        echo "Environment variables debug:"
+        echo "MLFLOW_TRACKING_URI set: $([[ -n \"$MLFLOW_TRACKING_URI\" ]] && echo \"Yes\" || echo \"No\")"
+        echo "DAGSHUB_TOKEN set: $([[ -n \"$DAGSHUB_TOKEN\" ]] && echo \"Yes\" || echo \"No\")"
+        echo "Testing basic Python imports..."
+        python -c "import mlflow; import dagshub; import sklearn; print('All imports successful')"
+    
     - name: Run MLflow notebook and train models
       run: |
-        echo "🚀 Starting ML model training..."
-        python run_notebook.py
-        echo "🎯 Model training completed!"
+        echo "Starting ML model training..."
+        
+        # Check if we have DagHub credentials
+        if [[ -z "$DAGSHUB_TOKEN" ]]; then
+          echo "No DagHub token provided - using safe mode (no MLflow tracking)"
+          python run_notebook_safe.py
+        else
+          echo "DagHub token available - attempting full pipeline"
+          echo "Testing DagHub connection first..."
+          
+          # Test DagHub connection with timeout
+          if timeout 60 python -c "import dagshub; dagshub.init(repo_owner='Bardakor', repo_name='mlflow-with-daghub', mlflow=True); print('DagHub connection successful')"; then
+            echo "DagHub connection successful - proceeding with full notebook"
+            echo "Timeout set to 15 minutes"
+            
+            if timeout 900 python run_notebook.py; then
+              echo "Full notebook execution successful"
+            else
+              echo "Full notebook failed or timed out - trying fast version"
+              if timeout 300 python run_notebook_fast.py; then
+                echo "Fast version successful"
+              else
+                echo "Fast version also failed - falling back to safe mode"
+                python run_notebook_safe.py
+              fi
+            fi
+          else
+            echo "DagHub connection test failed - using safe mode"
+            python run_notebook_safe.py
+          fi
+        fi
+        
+        echo "Model training completed!"
       env:
         MLFLOW_TRACKING_URI: https://dagshub.com/Bardakor/mlflow-with-daghub.mlflow
         MLFLOW_TRACKING_USERNAME: ${{ secrets.DAGSHUB_TOKEN }}
         MLFLOW_TRACKING_PASSWORD: ${{ secrets.DAGSHUB_TOKEN }}
         DAGSHUB_TOKEN: ${{ secrets.DAGSHUB_TOKEN }}
-      timeout-minutes: 15  # Timeout after 15 minutes
+        PYTHONUNBUFFERED: 1
+      timeout-minutes: 30
     
     - name: Generate model metadata
       run: |
-        echo "📊 Generating model metadata..."
+        echo "Generating model metadata..."
         python generate_metadata.py
-        echo "✅ Metadata generation completed!"
+        echo "Metadata generation completed!"
     
     - name: Verify model files
       run: |
-        echo "🔍 Verifying generated files..."
+        echo "Verifying generated files..."
         ls -la models/
         if [ ! -f "models/best_model.pkl" ]; then
-          echo "❌ best_model.pkl not found!"
+          echo "best_model.pkl not found!"
           exit 1
         fi
         if [ ! -f "models/model_metadata.json" ]; then
-          echo "❌ model_metadata.json not found!"
+          echo "model_metadata.json not found!"
           exit 1
         fi
-        echo "✅ All required files present!"
+        echo "All required files present!"
+        echo "Model metadata:"
         cat models/model_metadata.json
     
     - name: Push data and models to DVC (if configured)
       run: |
-        echo "📤 Attempting to push to DVC..."
-        dvc add models/best_model.pkl models/model_metadata.json || echo "⚠️ DVC add failed"
-        dvc push || echo "⚠️ DVC push failed - continuing without DVC storage"
+        echo "Attempting to push to DVC..."
+        dvc add models/best_model.pkl models/model_metadata.json || echo "DVC add failed"
+        dvc push || echo "DVC push failed - continuing without DVC storage"
       continue-on-error: true
       env:
         DAGSHUB_USERNAME: ${{ secrets.DAGSHUB_USERNAME }}
@@ -140,27 +186,27 @@ jobs:
     
     - name: Test Docker image
       run: |
-        echo "🧪 Testing Docker image..."
+        echo "Testing Docker image..."
         # Pull and test the image
         docker run --rm -d -p 5000:5000 --name test-container ${{ secrets.DOCKER_USERNAME }}/${{ env.DOCKER_IMAGE_NAME }}:latest
         sleep 15
         
         # Test health endpoint
         if curl -f http://localhost:5000/health; then
-          echo "✅ Health check passed!"
+          echo "Health check passed!"
         else
-          echo "❌ Health check failed!"
+          echo "Health check failed!"
           docker logs test-container
           exit 1
         fi
         
         # Test model info endpoint
         if curl -f http://localhost:5000/model_info; then
-          echo "✅ Model info endpoint passed!"
+          echo "Model info endpoint passed!"
         else
-          echo "❌ Model info endpoint failed!"
+          echo "Model info endpoint failed!"
         fi
         
         docker stop test-container
-        echo "🎉 Docker image tests completed successfully!"
+        echo "Docker image tests completed successfully!"
       if: github.event_name == 'push' && github.ref == 'refs/heads/main'

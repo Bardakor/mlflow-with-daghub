@@ -11,7 +11,7 @@ from sklearn.datasets import load_digits
 
 def create_sample_data():
     """Create sample dataset from sklearn digits dataset"""
-    print("🔄 Creating sample dataset...")
+    print("Creating sample dataset...")
     
     # Create data directory
     os.makedirs("data", exist_ok=True)
@@ -28,9 +28,9 @@ def create_sample_data():
     csv_path = "data/raw_dataset.csv"
     df.to_csv(csv_path, index=False)
     
-    print(f"✅ Sample dataset created: {csv_path}")
-    print(f"📊 Dataset shape: {df.shape}")
-    print(f"📁 File size: {os.path.getsize(csv_path) / 1024 / 1024:.1f} MB")
+    print(f"Sample dataset created: {csv_path}")
+    print(f"Dataset shape: {df.shape}")
+    print(f"File size: {os.path.getsize(csv_path) / 1024 / 1024:.1f} MB")
     
     return csv_path
 
