@@ -21,9 +21,14 @@ COPY generate_metadata.py .
 COPY create_sample_data.py .
 COPY run_training.py .
 
-# Create data directory and ensure data is available
-RUN mkdir -p models data && \
-    python create_sample_data.py
+# Create directories
+RUN mkdir -p models data
+
+# Copy trained models (if they exist locally)
+COPY models/ ./models/
+
+# Ensure data is available
+RUN python create_sample_data.py
 
 # Set environment variables
 ENV PYTHONPATH=/app
