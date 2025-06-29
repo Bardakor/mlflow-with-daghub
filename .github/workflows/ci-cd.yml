@@ -24,45 +24,21 @@ jobs:
       with:
         python-version: '3.11'
     
-    - name: Cache Python dependencies
-      uses: actions/cache@v3
-      with:
-        path: ~/.cache/pip
-        key: ${{ runner.os }}-pip-${{ hashFiles('**/requirements.txt') }}
-        restore-keys: |
-          ${{ runner.os }}-pip-
-    
-    - name: Install dependencies
+    - name: Install minimal dependencies for training only
       run: |
         python -m pip install --upgrade pip
-        pip install -r requirements.txt
-    
-    - name: Configure DVC (optional)
-      run: |
-        dvc remote modify origin --local auth basic
-        dvc remote modify origin --local user ${{ secrets.DAGSHUB_USERNAME }}
-        dvc remote modify origin --local password ${{ secrets.DAGSHUB_TOKEN }}
-      env:
-        DAGSHUB_USERNAME: ${{ secrets.DAGSHUB_USERNAME }}
-        DAGSHUB_TOKEN: ${{ secrets.DAGSHUB_TOKEN }}
-      continue-on-error: true
-    
-    - name: Pull data with DVC (if available)
-      run: |
-        echo "Attempting to pull data with DVC..."
-        dvc pull || echo "DVC pull failed - will use sklearn dataset directly"
-      continue-on-error: true
-    
-    - name: Ensure data availability
-      run: |
-        echo "Checking data availability..."
-        if [ -f "data/raw_dataset.csv" ]; then
-          echo "Raw dataset found locally"
-          ls -lh data/raw_dataset.csv
-        else
-          echo "Creating dataset from sklearn digits..."
-          python create_sample_data.py
+        # Install only what's needed for model training (much faster)
+        pip install scikit-learn numpy pandas joblib nbformat nbconvert ipython
+        # Add MLflow/DagHub only if we have credentials
+        if [[ -n "${{ secrets.DAGSHUB_TOKEN }}" ]]; then
+          pip install mlflow dagshub
         fi
+    
+    - name: Ensure data availability (using sklearn dataset)
+      run: |
+        echo "Creating sklearn digits dataset for training..."
+        python create_sample_data.py
+        echo "Data preparation completed!"
     
     - name: Debug environment before training
       run: |
@@ -143,15 +119,8 @@ jobs:
         echo "Model metadata:"
         cat models/model_metadata.json
     
-    - name: Push data and models to DVC (if configured)
-      run: |
-        echo "Attempting to push to DVC..."
-        dvc add models/best_model.pkl models/model_metadata.json || echo "DVC add failed"
-        dvc push || echo "DVC push failed - continuing without DVC storage"
-      continue-on-error: true
-      env:
-        DAGSHUB_USERNAME: ${{ secrets.DAGSHUB_USERNAME }}
-        DAGSHUB_TOKEN: ${{ secrets.DAGSHUB_TOKEN }}
+    # DVC storage step removed to optimize pipeline speed
+    # Models are now packaged directly in Docker image
     
     - name: Set up Docker Buildx
       uses: docker/setup-buildx-action@v3
