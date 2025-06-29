@@ -29,6 +29,9 @@ ENV/
 env.bak/
 venv.bak/
 
+# Development optimization tracking
+.venv/.requirements_installed
+
 # MLflow
 mlruns/
 mlartifacts/

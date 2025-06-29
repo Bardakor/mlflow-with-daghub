@@ -85,7 +85,7 @@ jobs:
         # Check if we have DagHub credentials
         if [[ -z "$DAGSHUB_TOKEN" ]]; then
           echo "No DagHub token provided - using safe mode (no MLflow tracking)"
-          python run_notebook_safe.py
+          python run_training.py --mode safe
         else
           echo "DagHub token available - attempting full pipeline"
           echo "Testing DagHub connection first..."
@@ -95,20 +95,20 @@ jobs:
             echo "DagHub connection successful - proceeding with full notebook"
             echo "Timeout set to 15 minutes"
             
-            if timeout 900 python run_notebook.py; then
+            if timeout 900 python run_training.py --mode notebook; then
               echo "Full notebook execution successful"
             else
               echo "Full notebook failed or timed out - trying fast version"
-              if timeout 300 python run_notebook_fast.py; then
+              if timeout 300 python run_training.py --mode fast; then
                 echo "Fast version successful"
               else
                 echo "Fast version also failed - falling back to safe mode"
-                python run_notebook_safe.py
+                python run_training.py --mode safe
               fi
             fi
           else
             echo "DagHub connection test failed - using safe mode"
-            python run_notebook_safe.py
+            python run_training.py --mode safe
           fi
         fi
         
@@ -183,6 +183,8 @@ jobs:
         platforms: linux/amd64,linux/arm64
         cache-from: type=gha
         cache-to: type=gha,mode=max
+        build-args: |
+          BUILDKIT_INLINE_CACHE=1
     
     - name: Test Docker image
       run: |

@@ -1,0 +1,40 @@
+version: '3.8'
+
+services:
+  mlflow-app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    ports:
+      - "5000:5000"
+    volumes:
+      # Mount source code for live development
+      - ./app.py:/app/app.py
+      - ./run_training.py:/app/run_training.py
+      - ./generate_metadata.py:/app/generate_metadata.py
+      - ./create_sample_data.py:/app/create_sample_data.py
+      # Persist models and data
+      - ./models:/app/models
+      - ./data:/app/data
+    environment:
+      - FLASK_ENV=development
+      - FLASK_DEBUG=1
+      - PYTHONUNBUFFERED=1
+    command: python app.py
+    
+  # Optional: Service for training models
+  mlflow-train:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    volumes:
+      - ./run_training.py:/app/run_training.py
+      - ./models:/app/models
+      - ./data:/app/data
+    environment:
+      - PYTHONUNBUFFERED=1
+    command: python run_training.py --mode safe
+    profiles: ["training"]  # Only run when explicitly requested
+
+volumes:
+  pip-cache: 
